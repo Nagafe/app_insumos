@@ -1,3 +1,4 @@
+<<<<<<< HEAD
 # app_insumos
 
 A new Flutter project.
@@ -14,3 +15,6 @@ A few resources to get you started if this is your first Flutter project:
 For help getting started with Flutter development, view the
 [online documentation](https://docs.flutter.dev/), which offers tutorials,
 samples, guidance on mobile development, and a full API reference.
+=======
+# app_insumos
+>>>>>>> 14e57a49a82801365a04ae635edcdd605b4ed93a
