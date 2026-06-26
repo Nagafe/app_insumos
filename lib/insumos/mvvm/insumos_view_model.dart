@@ -1,3 +1,4 @@
+import 'dart:typed_data';
 import 'package:flutter/material.dart';
 import '../models/insumo.dart';
 import '../services/insumos_service.dart';
@@ -10,19 +11,19 @@ class InsumosViewModel extends ChangeNotifier {
   List<Insumo> _insumos = [];
   List<Insumo> get insumos => _insumos;
 
-  // Variável para a busca que implementaremos depois
-  String _termoBusca = '';
-
   bool _estaCarregando = false;
   bool get estaCarregando => _estaCarregando;
 
   String? _erro;
   String? get erro => _erro;
 
-  // Getter da lista filtrada (padrão que adotamos para a busca)
+  String _termoBusca = '';
+
   List<Insumo> get insumosFiltrados {
     if (_termoBusca.isEmpty) return _insumos;
-    return _insumos.where((i) => i.nome.toLowerCase().contains(_termoBusca.toLowerCase())).toList();
+    return _insumos
+        .where((insumo) => insumo.nome.toLowerCase().contains(_termoBusca.toLowerCase()))
+        .toList();
   }
 
   Future<void> carregarInsumos() async {
@@ -33,40 +34,43 @@ class InsumosViewModel extends ChangeNotifier {
     try {
       _insumos = await _service.listarInsumos();
     } catch (e) {
-      _erro = 'Erro ao buscar insumos: $e';
+      _erro = 'Erro ao carregar insumos: $e';
     } finally {
       _estaCarregando = false;
       notifyListeners();
     }
   }
 
-  Future<bool> salvarInsumo(Insumo insumo) async {
+  Future<bool> salvarInsumo(Insumo insumo, {Uint8List? imageBytes, String? imageName}) async {
     _estaCarregando = true;
+    _erro = null;
     notifyListeners();
 
     try {
       if (insumo.id == null) {
-        await _service.adicionarInsumo(insumo);
+        await _service.adicionarInsumo(insumo, imageBytes: imageBytes, imageName: imageName);
       } else {
-        await _service.atualizarInsumo(insumo);
+        await _service.atualizarInsumo(insumo, imageBytes: imageBytes, imageName: imageName);
       }
       await carregarInsumos();
       return true;
     } catch (e) {
-      _erro = 'Erro ao salvar: $e';
+      _erro = 'Erro ao salvar insumo: $e';
       _estaCarregando = false;
       notifyListeners();
       return false;
     }
   }
 
-  Future<void> deletarInsumo(String id) async {
+  Future<bool> deletarInsumo(String id) async {
     try {
       await _service.deletarInsumo(id);
       await carregarInsumos();
+      return true;
     } catch (e) {
-      _erro = 'Erro ao excluir: $e';
+      _erro = 'Erro ao deletar insumo: $e';
       notifyListeners();
+      return false;
     }
   }
 

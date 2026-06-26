@@ -17,7 +17,7 @@ class InsumosDbHelper {
   }
 
   Future<Database> _initDB(String filePath) async {
-    // Configuração para suportar Desktop (Windows/Linux/Mac)
+    // Garante compatibilidade caso rode o emulador via Desktop
     if (Platform.isWindows || Platform.isLinux || Platform.isMacOS) {
       sqfliteFfiInit();
       databaseFactory = databaseFactoryFfi;
@@ -30,6 +30,7 @@ class InsumosDbHelper {
   }
 
   Future _createDB(Database db, int version) async {
+    // Tabela espelhando perfeitamente a base do Supabase
     await db.execute('''
       CREATE TABLE insumos (
         id TEXT PRIMARY KEY,
@@ -47,6 +48,8 @@ class InsumosDbHelper {
   Future<void> salvarLocal(Insumo insumo, {bool estaSincronizado = true}) async {
     final db = await instance.database;
     final dados = insumo.toMap();
+
+    // A flag de controle offline
     dados['sincronizado'] = estaSincronizado ? 1 : 0;
 
     await db.insert(
@@ -59,10 +62,10 @@ class InsumosDbHelper {
   Future<List<Insumo>> listarLocal() async {
     final db = await instance.database;
     final resultado = await db.query('insumos', orderBy: 'nome ASC');
-
     return resultado.map((json) => Insumo.fromMap(json)).toList();
   }
 
+  // Retorna os dados crus (Map) para facilitar o UPSERT no Supabase depois
   Future<List<Map<String, dynamic>>> listarPendentes() async {
     final db = await instance.database;
     return await db.query('insumos', where: 'sincronizado = ?', whereArgs: [0]);

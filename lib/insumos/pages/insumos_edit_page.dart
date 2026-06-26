@@ -6,14 +6,17 @@ import 'package:provider/provider.dart';
 import '../models/insumo.dart';
 import '../mvvm/insumos_view_model.dart';
 
-class InsumosAddPage extends StatefulWidget {
-  const InsumosAddPage({super.key});
+class InsumosEditPage extends StatefulWidget {
+  final Insumo insumo;
+
+  const InsumosEditPage({super.key, required this.insumo});
 
   @override
-  State<InsumosAddPage> createState() => _InsumosAddPageState();
+  State<InsumosEditPage> createState() => _InsumosEditPageState();
 }
 
-class _InsumosAddPageState extends State<InsumosAddPage> {
+class _InsumosEditPageState extends State<InsumosEditPage> {
+  // Controllers locais para manipulação dos dados existentes
   final TextEditingController nome = TextEditingController();
   final TextEditingController descricao = TextEditingController();
   final TextEditingController estoqueMinimo = TextEditingController();
@@ -23,7 +26,19 @@ class _InsumosAddPageState extends State<InsumosAddPage> {
   File? _foto;
   Uint8List? imgWeb;
   String? arqPath;
-  String? imagem; // Guarda a referência do caminho local do ImagePicker
+  String? imagem; // Armazena a URL da imagem atual ou nova referência
+
+  @override
+  void initState() {
+    super.initState();
+    // Inicializa os campos com os valores atuais do insumo selecionado
+    nome.text = widget.insumo.nome;
+    descricao.text = widget.insumo.descricao ?? '';
+    estoqueMinimo.text = widget.insumo.estoqueMinimo?.toString() ?? '';
+    categoria.text = widget.insumo.categoria ?? '';
+    unidadeMedida.text = widget.insumo.unidadeMedida ?? '';
+    imagem = widget.insumo.imagemUrl;
+  }
 
   @override
   void dispose() {
@@ -40,7 +55,7 @@ class _InsumosAddPageState extends State<InsumosAddPage> {
     return SafeArea(
       child: Scaffold(
         appBar: AppBar(
-          title: const Text('Registrar Insumo'),
+          title: const Text('Editar Insumo'),
           backgroundColor: Colors.blueAccent,
           foregroundColor: Colors.white,
         ),
@@ -51,12 +66,12 @@ class _InsumosAddPageState extends State<InsumosAddPage> {
               return Column(
                 children: [
                   const Text(
-                    'Registrar Insumos',
+                    'Alterar Insumo',
                     style: TextStyle(fontSize: 30, fontWeight: FontWeight.bold),
                   ),
                   const SizedBox(height: 20),
 
-                  // Seletor de Imagem Circular
+                  // Seletor de Imagem com pré-visualização hierárquica (Local -> Web -> Rede -> Ícone)
                   InkWell(
                     onTap: _abrirSeletorImagem,
                     child: Container(
@@ -74,6 +89,7 @@ class _InsumosAddPageState extends State<InsumosAddPage> {
                   ),
                   const SizedBox(height: 30),
 
+                  // Reuso da estrutura de inputs padronizada
                   _buildTextField(nome, "Nome"),
                   _buildTextField(descricao, "Descrição"),
                   _buildTextField(estoqueMinimo, "Estoque Mínimo", keyboardType: TextInputType.number),
@@ -82,6 +98,7 @@ class _InsumosAddPageState extends State<InsumosAddPage> {
 
                   const SizedBox(height: 40),
 
+                  // Botões de Confirmação
                   Row(
                     mainAxisAlignment: MainAxisAlignment.spaceAround,
                     children: [
@@ -99,37 +116,23 @@ class _InsumosAddPageState extends State<InsumosAddPage> {
                             return;
                           }
 
-                          String? nomeDoArquivo;
-                          Uint8List? bytesDaImagem;
-
-                          if (imgWeb != null) {
-                            bytesDaImagem = imgWeb;
-                            nomeDoArquivo = '${DateTime.now().millisecondsSinceEpoch}.jpg';
-                          } else if (_foto != null) {
-                            bytesDaImagem = await _foto!.readAsBytes();
-                            nomeDoArquivo = '${DateTime.now().millisecondsSinceEpoch}.jpg';
-                          }
-
-                          // CORREÇÃO: Passando a variável 'imagem' (path local) para o modelo
-                          final novoInsumo = Insumo(
+                          // Criação do objeto mantendo obrigatoriamente o ID original para trigger do UPDATE
+                          final insumoAtualizado = Insumo(
+                            id: widget.insumo.id,
                             nome: nome.text,
                             descricao: descricao.text.isEmpty ? null : descricao.text,
                             estoqueMinimo: int.tryParse(estoqueMinimo.text),
                             categoria: categoria.text.isEmpty ? null : categoria.text,
                             unidadeMedida: unidadeMedida.text.isEmpty ? null : unidadeMedida.text,
-                            imagemUrl: imagem, // Modificado de 'null' para 'imagem'
+                            imagemUrl: imagem,
                           );
 
-                          final sucesso = await viewModel.salvarInsumo(
-                              novoInsumo,
-                              imageBytes: bytesDaImagem,
-                              imageName: nomeDoArquivo
-                          );
+                          final sucesso = await viewModel.salvarInsumo(insumoAtualizado);
 
                           if (sucesso && mounted) {
                             ScaffoldMessenger.of(context).showSnackBar(
                               const SnackBar(
-                                content: Text('Dados Gravados com Sucesso!'),
+                                content: Text('Dados Atualizados com Sucesso!'),
                                 backgroundColor: Colors.green,
                                 duration: Duration(seconds: 2),
                               ),
@@ -138,7 +141,7 @@ class _InsumosAddPageState extends State<InsumosAddPage> {
                           } else if (mounted) {
                             ScaffoldMessenger.of(context).showSnackBar(
                               const SnackBar(
-                                content: Text('Problemas ao gravar dados!'),
+                                content: Text('Problemas ao atualizar dados!'),
                                 backgroundColor: Colors.redAccent,
                                 duration: Duration(seconds: 2),
                               ),
@@ -173,13 +176,20 @@ class _InsumosAddPageState extends State<InsumosAddPage> {
     );
   }
 
-  // Componente visual para renderizar o preview da foto antes de salvar
+  // Componente de renderização condicional da imagem
   Widget _obterWidgetImagem() {
     if (kIsWeb && imgWeb != null) {
       return Image.memory(imgWeb!, fit: BoxFit.cover);
     }
     if (_foto != null) {
       return Image.file(_foto!, fit: BoxFit.cover);
+    }
+    if (imagem != null && imagem!.isNotEmpty) {
+      return Image.network(
+        imagem!,
+        fit: BoxFit.cover,
+        errorBuilder: (context, error, stackTrace) => const Icon(Icons.inventory_2, size: 60, color: Colors.blueAccent),
+      );
     }
     return const Icon(Icons.photo_camera, size: 60, color: Colors.blueAccent);
   }
@@ -249,7 +259,7 @@ class _InsumosAddPageState extends State<InsumosAddPage> {
         }
         _foto = File(imagemSelecionada.path);
         arqPath = imagemSelecionada.name;
-        imagem = imagemSelecionada.path; // Define o caminho interno para exibição híbrida
+        imagem = imagemSelecionada.path;
       });
     }
   }
