@@ -30,7 +30,7 @@ class InsumosDbHelper {
   }
 
   Future _createDB(Database db, int version) async {
-    // Tabela espelhando perfeitamente a base do Supabase
+    // 1. Tabela original espelhando a base do Supabase
     await db.execute('''
       CREATE TABLE insumos (
         id TEXT PRIMARY KEY,
@@ -41,6 +41,35 @@ class InsumosDbHelper {
         unidade_medida TEXT,
         imagem_url TEXT,
         sincronizado INTEGER NOT NULL DEFAULT 1
+      )
+    ''');
+
+    // 2. NOVA Tabela de Lotes
+    await db.execute('''
+      CREATE TABLE lotes (
+        id TEXT PRIMARY KEY,
+        insumo_id TEXT NOT NULL,
+        numero_lote TEXT NOT NULL,
+        data_validade TEXT NOT NULL,
+        quantidade_lote INTEGER NOT NULL,
+        sincronizado INTEGER DEFAULT 0
+      )
+    ''');
+
+    // 3. NOVA Tabela de Movimentações
+    await db.execute('''
+      CREATE TABLE movimentacoes (
+        id TEXT PRIMARY KEY,
+        insumo_id TEXT NOT NULL,
+        funcionario_id TEXT NOT NULL,
+        fornecedor_id TEXT,
+        lote_id TEXT NOT NULL,
+        tipo TEXT NOT NULL,
+        quantidade INTEGER NOT NULL,
+        custo_unitario REAL,
+        motivo TEXT,
+        data_movimentacao TEXT,
+        sincronizado INTEGER DEFAULT 0
       )
     ''');
   }

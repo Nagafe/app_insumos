@@ -1,6 +1,7 @@
 import 'package:app_insumos/fornecedores/pages/fornecedor_list_page.dart';
 import 'package:app_insumos/insumos/pages/insumos_list_page.dart';
 import 'package:app_insumos/funcionarios/components/perfil_dialog.dart';
+import 'package:app_insumos/movimentacoes/pages/movimentacao_page.dart';
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
@@ -22,12 +23,7 @@ class _MainPageState extends State<MainPage> {
         style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
       ),
     ),
-    Center(
-      child: Text(
-        'Movimentação (Entrada e Saída)',
-        style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
-      ),
-    ),
+    MovimentacaoPage(),
     InsumosListPage(),
     FornecedoresListPage(), // Tela de fornecedores
   ];
