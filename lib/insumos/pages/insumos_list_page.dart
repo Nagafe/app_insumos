@@ -1,3 +1,4 @@
+import 'dart:convert';
 import 'dart:io';
 
 import 'package:flutter/material.dart';
@@ -115,23 +116,17 @@ class _InsumosListPageState extends State<InsumosListPage> {
             contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
 
             // Renderização condicional e segura da imagem armazenada na nuvem
-            leading: ClipRRect(borderRadius: BorderRadius.circular(8),
+            leading: ClipRRect(
+              borderRadius: BorderRadius.circular(8),
               child: insumo.imagemUrl != null && insumo.imagemUrl!.isNotEmpty
-                  ? (insumo.imagemUrl!.startsWith('http')
-                  ? Image.network(
-                insumo.imagemUrl!,
+                  ? Image.memory(
+                base64Decode(insumo.imagemUrl!), // Lê o texto Base64
                 width: 50,
                 height: 50,
                 fit: BoxFit.cover,
-                errorBuilder: (context, error, stackTrace) => const Icon(Icons.inventory_2, size: 40, color: Colors.grey),
+                errorBuilder: (context, error, stackTrace) =>
+                const Icon(Icons.broken_image, size: 40, color: Colors.grey),
               )
-                  : Image.file(
-                File(insumo.imagemUrl!),
-                width: 50,
-                height: 50,
-                fit: BoxFit.cover,
-                errorBuilder: (context, error, stackTrace) => const Icon(Icons.inventory_2, size: 40, color: Colors.grey),
-              ))
                   : Container(
                 width: 50,
                 height: 50,

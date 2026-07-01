@@ -39,6 +39,8 @@ class MovimentacoesServiceHibrido implements MovimentacoesService {
     movimentacao.id = movId;
     lote.id = loteId;
 
+    movimentacao.loteId = loteId;
+
     debugPrint('--- DEBUG MOVIMENTAÇÃO ---');
     debugPrint('Insumo Atual: ${insumo.nome} | Saldo: ${insumo.saldoGeral} | Custo Médio: ${insumo.custoMedio}');
     debugPrint('Movimentação: ${movimentacao.tipo} | Qtd: ${movimentacao.quantidade} | Custo Unit: ${movimentacao.custoUnitario}');
@@ -103,6 +105,8 @@ class MovimentacoesServiceHibrido implements MovimentacoesService {
 
       await db.update('movimentacoes', {'sincronizado': 1}, where: 'id = ?', whereArgs: [movId]);
     } catch (e) {
+      print('==== ERRO SUPABASE NA MOVIMENTAÇÃO ====');
+      print(e.toString()); // Isso vai mostrar exatamente o que o Supabase recusar!
       print('Modo Offline: Movimentação de ${movimentacao.tipo} salva localmente.');
     }
   }

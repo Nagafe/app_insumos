@@ -69,7 +69,6 @@ class Insumo {
     );
   }
 
-  // --- A CORREÇÃO NECESSÁRIA ---
   @override
   bool operator ==(Object other) {
     if (identical(this, other)) return true;

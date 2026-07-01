@@ -1,4 +1,4 @@
-import 'dart:io';
+import 'dart:convert'; // <-- Necessário para o base64Encode
 import 'dart:typed_data';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:uuid/uuid.dart';
@@ -11,57 +11,25 @@ class InsumosServiceHibrido implements InsumosService {
   final _dbLocal = InsumosDbHelper.instance;
   final _uuid = const Uuid();
 
-  // Método de sincronização robusto integrado à lógica original de mapas
+  // A sincronização agora é trivial, pois a imagem Base64 já está no JSON!
   Future<void> _sincronizarPendentes() async {
     try {
       final pendentes = await _dbLocal.listarPendentes();
       for (var json in pendentes) {
         final mapaAjustado = Map<String, dynamic>.from(json);
-        String? urlAtual = mapaAjustado['imagem_url'];
-
-        // Se o registro offline armazena um arquivo local do celular e agora temos rede,
-        // realiza o upload tardio da foto física para o Supabase Storage
-        if (urlAtual != null && !urlAtual.startsWith('http') && urlAtual.isNotEmpty) {
-          try {
-            final arquivoLocal = File(urlAtual);
-            if (await arquivoLocal.exists()) {
-              final nomeArquivo = '${DateTime.now().millisecondsSinceEpoch}.jpg';
-              final pathNoBucket = 'public/$nomeArquivo';
-              final bytes = await arquivoLocal.readAsBytes();
-
-              // Faz o upload do binário para o Storage
-              await _supabase.storage.from('insumos').uploadBinary(pathNoBucket, bytes);
-
-              // Gera a URL pública real da internet
-              final urlPublica = _supabase.storage.from('insumos').getPublicUrl(pathNoBucket);
-
-              mapaAjustado['imagem_url'] = urlPublica;
-
-              // Atualiza o banco SQLite local com a nova URL estável da nuvem
-              await _dbLocal.salvarLocal(Insumo.fromMap(mapaAjustado), estaSincronizado: true);
-            }
-          } catch (err) {
-            print('Erro ao enviar imagem pendente para o Storage: $err');
-          }
-        }
-
-        // Remove a flag de controle interno do SQLite antes de enviar à nuvem
         mapaAjustado.remove('sincronizado');
 
-        // Executa o Upsert na tabela do Supabase utilizando a estrutura de mapa
+        // Envia o JSON (incluindo o texto Base64 gigante) direto para a tabela
         await _supabase.from('insumos').upsert(mapaAjustado);
-
-        // Marca o registro como sincronizado com sucesso no celular
         await _dbLocal.marcarComoSincronizado(json['id'] as String);
       }
     } catch (e) {
-      print('Sincronização em background aguardando conexão estável: $e');
+      print('Sincronização em background falhou: $e');
     }
   }
 
   @override
   Future<List<Insumo>> listarInsumos() async {
-    // Roda a sincronização de dados e mídias pendentes antes de listar
     await _sincronizarPendentes();
 
     try {
@@ -81,16 +49,11 @@ class InsumosServiceHibrido implements InsumosService {
   @override
   Future<void> adicionarInsumo(Insumo insumo, {Uint8List? imageBytes, String? imageName}) async {
     final String novoId = insumo.id ?? _uuid.v4();
-    String? urlDefinitiva = insumo.imagemUrl;
+    String? urlBase64 = insumo.imagemUrl;
 
-    if (imageBytes != null && imageName != null) {
-      try {
-        final pathNoBucket = 'public/$imageName';
-        await _supabase.storage.from('insumos').uploadBinary(pathNoBucket, imageBytes);
-        urlDefinitiva = _supabase.storage.from('insumos').getPublicUrl(pathNoBucket);
-      } catch (e) {
-        print('Offline ao adicionar: Mantendo o path local para processamento posterior.');
-      }
+    // CONVERSÃO MÁGICA: Transforma a foto num texto
+    if (imageBytes != null) {
+      urlBase64 = base64Encode(imageBytes);
     }
 
     final insumoComId = Insumo(
@@ -99,7 +62,7 @@ class InsumosServiceHibrido implements InsumosService {
       estoqueMinimo: insumo.estoqueMinimo,
       categoria: insumo.categoria,
       unidadeMedida: insumo.unidadeMedida,
-      imagemUrl: urlDefinitiva,
+      imagemUrl: urlBase64, // Agora guarda a string Base64
     );
 
     await _dbLocal.salvarLocal(insumoComId, estaSincronizado: false);
@@ -108,25 +71,17 @@ class InsumosServiceHibrido implements InsumosService {
       await _supabase.from('insumos').insert(insumoComId.toMap());
       await _dbLocal.marcarComoSincronizado(novoId);
     } catch (e) {
-      print('==== ERRO DO SUPABASE ====');
-      print(e.toString());
-      print('==========================');
-      print('Registro guardado localmente no SQLite.');
+      print('Registro guardado localmente no SQLite. Erro nuvem: $e');
     }
   }
 
   @override
   Future<void> atualizarInsumo(Insumo insumo, {Uint8List? imageBytes, String? imageName}) async {
-    String? urlDefinitiva = insumo.imagemUrl;
+    String? urlBase64 = insumo.imagemUrl;
 
-    if (imageBytes != null && imageName != null) {
-      try {
-        final pathNoBucket = 'public/$imageName';
-        await _supabase.storage.from('insumos').uploadBinary(pathNoBucket, imageBytes);
-        urlDefinitiva = _supabase.storage.from('insumos').getPublicUrl(pathNoBucket);
-      } catch (e) {
-        print('Offline ao atualizar: Mantendo a referência local.');
-      }
+    // CONVERSÃO MÁGICA: Atualiza a foto para o novo texto Base64
+    if (imageBytes != null) {
+      urlBase64 = base64Encode(imageBytes);
     }
 
     final insumoAtualizado = Insumo(
@@ -135,7 +90,7 @@ class InsumosServiceHibrido implements InsumosService {
       estoqueMinimo: insumo.estoqueMinimo,
       categoria: insumo.categoria,
       unidadeMedida: insumo.unidadeMedida,
-      imagemUrl: urlDefinitiva,
+      imagemUrl: urlBase64,
     );
 
     await _dbLocal.salvarLocal(insumoAtualizado, estaSincronizado: false);
@@ -144,7 +99,7 @@ class InsumosServiceHibrido implements InsumosService {
       await _supabase.from('insumos').update(insumoAtualizado.toMap()).eq('id', insumo.id!);
       await _dbLocal.marcarComoSincronizado(insumo.id!);
     } catch (e) {
-      print('Edição guardada localmente no SQLite.');
+      print('Edição guardada localmente no SQLite. Erro nuvem: $e');
     }
   }
 

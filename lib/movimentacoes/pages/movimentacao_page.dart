@@ -241,6 +241,12 @@ class _MovimentacaoPageState extends State<MovimentacaoPage> {
       _mostrarErro('Selecione um insumo.');
       return;
     }
+    final listaAtualizada = context.read<InsumosViewModel>().insumos;
+    final insumoMaisRecente = listaAtualizada.firstWhere(
+          (i) => i.id == insumoSelecionado!.id,
+      orElse: () => insumoSelecionado!,
+    );
+
     final int qtd = int.tryParse(quantidadeCtrl.text) ?? 0;
     if (qtd <= 0) {
       _mostrarErro('Informe uma quantidade válida e maior que zero.');
@@ -256,18 +262,16 @@ class _MovimentacaoPageState extends State<MovimentacaoPage> {
       }
     }
 
-    // CAPTURA DO ID REAL: Pega o ID do funcionário que está logado no Supabase
     final usuarioAtual = Supabase.instance.client.auth.currentUser;
     if (usuarioAtual == null) {
       _mostrarErro('Erro de sessão: Faça login novamente.');
       return;
     }
-    final String funcionarioIdReal = usuarioAtual.id;
 
     bool sucesso = await movViewModel.processarMovimentacao(
-      insumoSelecionado: insumoSelecionado!,
+      insumoSelecionado: insumoMaisRecente, // <-- Usa o insumo atualizado aqui!
       quantidade: qtd,
-      funcionarioId: funcionarioIdReal, // <-- Agora enviamos o ID real e válido!
+      funcionarioId: usuarioAtual.id,
       fornecedorId: fornecedorSelecionado?.id,
       loteExistente: loteSelecionado,
       novoNumeroLote: numeroLoteCtrl.text.isNotEmpty ? numeroLoteCtrl.text : null,
@@ -281,6 +285,8 @@ class _MovimentacaoPageState extends State<MovimentacaoPage> {
         const SnackBar(content: Text('Movimentação registada com sucesso!'), backgroundColor: Colors.green),
       );
       _limparCampos();
+      //Recarregar os insumos para refletir o novo saldo na UI imediatamente
+      context.read<InsumosViewModel>().carregarInsumos();
     } else if (mounted) {
       _mostrarErro(movViewModel.erro ?? 'Erro desconhecido ao processar movimentação.');
     }

@@ -1,3 +1,4 @@
+import 'dart:convert';
 import 'dart:io';
 import 'package:flutter/foundation.dart' show kIsWeb, Uint8List;
 import 'package:flutter/material.dart';
@@ -40,17 +41,14 @@ class _InsumosEditPageState extends State<InsumosEditPage> {
     'ROLO': 'Rolo',
   };
 
-  File? _foto;
-  Uint8List? imgWeb;
-  String? arqPath;
-  String? imagem;
+ String? imagemBase64;
 
   @override
   void initState() {
     super.initState();
     nome.text = widget.insumo.nome;
     estoqueMinimo.text = widget.insumo.estoqueMinimo?.toString() ?? '0';
-    imagem = widget.insumo.imagemUrl;
+    imagemBase64 = widget.insumo.imagemUrl;
 
     // Garante que a categoria exista no Map antes de atribuir
     if (_categorias.containsKey(widget.insumo.categoria)) {
@@ -160,10 +158,8 @@ class _InsumosEditPageState extends State<InsumosEditPage> {
   }
 
   Widget _obterWidgetImagem() {
-    if (kIsWeb && imgWeb != null) return Image.memory(imgWeb!, fit: BoxFit.cover);
-    if (_foto != null) return Image.file(_foto!, fit: BoxFit.cover);
-    if (imagem != null && imagem!.isNotEmpty) {
-      return Image.network(imagem!, fit: BoxFit.cover, errorBuilder: (context, error, stackTrace) => const Icon(Icons.inventory_2, size: 60, color: Colors.blueAccent));
+    if (imagemBase64 != null && imagemBase64!.isNotEmpty) {
+      return Image.memory(base64Decode(imagemBase64!), fit: BoxFit.cover);
     }
     return const Icon(Icons.photo_camera, size: 60, color: Colors.blueAccent);
   }
@@ -234,10 +230,7 @@ class _InsumosEditPageState extends State<InsumosEditPage> {
     if (imagemSelecionada != null) {
       final bytes = await imagemSelecionada.readAsBytes();
       setState(() {
-        if (kIsWeb) imgWeb = bytes;
-        _foto = File(imagemSelecionada.path);
-        arqPath = imagemSelecionada.name;
-        imagem = imagemSelecionada.path;
+        imagemBase64 = base64Encode(bytes); // Transforma em texto na hora!
       });
     }
   }
@@ -256,7 +249,7 @@ class _InsumosEditPageState extends State<InsumosEditPage> {
       estoqueMinimo: int.tryParse(estoqueMinimo.text),
       categoria: _categoriaSelecionada,
       unidadeMedida: _unidadeSelecionada,
-      imagemUrl: imagem,
+      imagemUrl: imagemBase64,
       // Mantém os dados numéricos já existentes
       saldoGeral: widget.insumo.saldoGeral,
       custoMedio: widget.insumo.custoMedio,

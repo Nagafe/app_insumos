@@ -1,3 +1,4 @@
+import 'dart:convert';
 import 'dart:io';
 import 'package:flutter/foundation.dart' show kIsWeb, Uint8List;
 import 'package:flutter/material.dart';
@@ -38,10 +39,7 @@ class _InsumosAddPageState extends State<InsumosAddPage> {
     'ROLO': 'Rolo',
   };
 
-  File? _foto;
-  Uint8List? imgWeb;
-  String? arqPath;
-  String? imagem;
+  String? imagemBase64;
 
   @override
   void dispose() {
@@ -172,8 +170,9 @@ class _InsumosAddPageState extends State<InsumosAddPage> {
   }
 
   Widget _obterWidgetImagem() {
-    if (kIsWeb && imgWeb != null) return Image.memory(imgWeb!, fit: BoxFit.cover);
-    if (_foto != null) return Image.file(_foto!, fit: BoxFit.cover);
+    if (imagemBase64 != null && imagemBase64!.isNotEmpty) {
+      return Image.memory(base64Decode(imagemBase64!), fit: BoxFit.cover);
+    }
     return const Icon(Icons.photo_camera, size: 60, color: Colors.blueAccent);
   }
 
@@ -239,15 +238,13 @@ class _InsumosAddPageState extends State<InsumosAddPage> {
 
   Future<void> _processarImagem(ImageSource source) async {
     final picker = ImagePicker();
-    final XFile? imagemSelecionada = await picker.pickImage(source: source, maxWidth: 600, imageQuality: 85);
+    // A compressão (imageQuality: 50) é VITAL no Base64 para não travar o celular!
+    final XFile? imagemSelecionada = await picker.pickImage(source: source, maxWidth: 400, imageQuality: 50);
 
     if (imagemSelecionada != null) {
       final bytes = await imagemSelecionada.readAsBytes();
       setState(() {
-        if (kIsWeb) imgWeb = bytes;
-        _foto = File(imagemSelecionada.path);
-        arqPath = imagemSelecionada.name;
-        imagem = imagemSelecionada.path;
+        imagemBase64 = base64Encode(bytes); // Transforma em texto na hora!
       });
     }
   }
@@ -263,26 +260,18 @@ class _InsumosAddPageState extends State<InsumosAddPage> {
     String? nomeDoArquivo;
     Uint8List? bytesDaImagem;
 
-    if (imgWeb != null) {
-      bytesDaImagem = imgWeb;
-      nomeDoArquivo = '${DateTime.now().millisecondsSinceEpoch}.jpg';
-    } else if (_foto != null) {
-      bytesDaImagem = await _foto!.readAsBytes();
-      nomeDoArquivo = '${DateTime.now().millisecondsSinceEpoch}.jpg';
-    }
-
     final novoInsumo = Insumo(
       nome: nome.text,
       estoqueMinimo: int.tryParse(estoqueMinimo.text),
       categoria: _categoriaSelecionada,
       unidadeMedida: _unidadeSelecionada,
-      imagemUrl: imagem,
+      imagemUrl: imagemBase64,
       ativo: true,
       saldoGeral: 0,
       custoMedio: 0.0,
     );
 
-    final sucesso = await viewModel.salvarInsumo(novoInsumo, imageBytes: bytesDaImagem, imageName: nomeDoArquivo);
+    final sucesso = await viewModel.salvarInsumo(novoInsumo);
 
     if (sucesso && mounted) {
       ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Dados Gravados com Sucesso!'), backgroundColor: Colors.green));
