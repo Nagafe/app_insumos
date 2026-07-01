@@ -1,3 +1,4 @@
+import 'package:app_insumos/dashboard/pages/dashboard_page.dart';
 import 'package:app_insumos/fornecedores/pages/fornecedor_list_page.dart';
 import 'package:app_insumos/insumos/pages/insumos_list_page.dart';
 import 'package:app_insumos/funcionarios/components/perfil_dialog.dart';
@@ -17,12 +18,7 @@ class _MainPageState extends State<MainPage> {
 
   // Lista de telas correspondentes às novas regras de negócio
   final List<Widget> _telas = const [
-    Center(
-      child: Text(
-        'Painel Principal (Principal)',
-        style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
-      ),
-    ),
+    DashboardPage(),
     MovimentacaoPage(),
     InsumosListPage(),
     FornecedoresListPage(), // Tela de fornecedores

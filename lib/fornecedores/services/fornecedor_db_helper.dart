@@ -73,9 +73,7 @@ class FornecedorDbHelper {
     final dados = fornecedor.toMap();
     dados['id'] = fornecedor.id;
     dados['ativo'] = fornecedor.ativo ? 1 : 0;
-    dados['sincronizado'] = estaSincronizado
-        ? 1
-        : 0; // Nova regra de negócio local
+    dados['sincronizado'] = estaSincronizado ? 1 : 0; // Nova regra de negócio local
 
     await db.insert(
       'fornecedores',

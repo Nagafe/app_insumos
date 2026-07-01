@@ -16,37 +16,55 @@ class InsumosEditPage extends StatefulWidget {
 }
 
 class _InsumosEditPageState extends State<InsumosEditPage> {
-  // Controllers locais para manipulação dos dados existentes
   final TextEditingController nome = TextEditingController();
-  final TextEditingController descricao = TextEditingController();
   final TextEditingController estoqueMinimo = TextEditingController();
-  final TextEditingController categoria = TextEditingController();
-  final TextEditingController unidadeMedida = TextEditingController();
+
+  String? _categoriaSelecionada;
+  String? _unidadeSelecionada;
+
+  final Map<String, String> _categorias = {
+    'CONSUMIVEL': 'Consumíveis',
+    'EPI': 'EPI',
+    'MEDICAMENTO': 'Medicamentos',
+    'INSTRUMENTAL': 'Instrumental',
+  };
+
+  final Map<String, String> _unidades = {
+    'CAIXA': 'Caixa',
+    'FRASCO': 'Frasco',
+    'KIT': 'Kit',
+    'UNIDADE': 'Unidade',
+    'LITRO': 'Litro',
+    'PACOTE': 'Pacote',
+    'PAR': 'Par',
+    'ROLO': 'Rolo',
+  };
 
   File? _foto;
   Uint8List? imgWeb;
   String? arqPath;
-  String? imagem; // Armazena a URL da imagem atual ou nova referência
+  String? imagem;
 
   @override
   void initState() {
     super.initState();
-    // Inicializa os campos com os valores atuais do insumo selecionado
     nome.text = widget.insumo.nome;
-    descricao.text = widget.insumo.descricao ?? '';
-    estoqueMinimo.text = widget.insumo.estoqueMinimo?.toString() ?? '';
-    categoria.text = widget.insumo.categoria ?? '';
-    unidadeMedida.text = widget.insumo.unidadeMedida ?? '';
+    estoqueMinimo.text = widget.insumo.estoqueMinimo?.toString() ?? '0';
     imagem = widget.insumo.imagemUrl;
+
+    // Garante que a categoria exista no Map antes de atribuir
+    if (_categorias.containsKey(widget.insumo.categoria)) {
+      _categoriaSelecionada = widget.insumo.categoria;
+    }
+    if (_unidades.containsKey(widget.insumo.unidadeMedida)) {
+      _unidadeSelecionada = widget.insumo.unidadeMedida;
+    }
   }
 
   @override
   void dispose() {
     nome.dispose();
-    descricao.dispose();
     estoqueMinimo.dispose();
-    categoria.dispose();
-    unidadeMedida.dispose();
     super.dispose();
   }
 
@@ -71,7 +89,6 @@ class _InsumosEditPageState extends State<InsumosEditPage> {
                   ),
                   const SizedBox(height: 20),
 
-                  // Seletor de Imagem com pré-visualização hierárquica (Local -> Web -> Rede -> Ícone)
                   InkWell(
                     onTap: _abrirSeletorImagem,
                     child: Container(
@@ -89,16 +106,21 @@ class _InsumosEditPageState extends State<InsumosEditPage> {
                   ),
                   const SizedBox(height: 30),
 
-                  // Reuso da estrutura de inputs padronizada
-                  _buildTextField(nome, "Nome"),
-                  _buildTextField(descricao, "Descrição"),
-                  _buildTextField(estoqueMinimo, "Estoque Mínimo", keyboardType: TextInputType.number),
-                  _buildTextField(categoria, "Categoria"),
-                  _buildTextField(unidadeMedida, "Unidade de Medida"),
+                  _buildTextField(nome, "Nome do Insumo *"),
+
+                  Row(
+                    children: [
+                      Expanded(child: _buildDropdownCategoria()),
+                      const SizedBox(width: 16),
+                      Expanded(child: _buildDropdownUnidade()),
+                    ],
+                  ),
+                  const SizedBox(height: 20),
+
+                  _buildTextField(estoqueMinimo, "Estoque Mínimo *", keyboardType: TextInputType.number),
 
                   const SizedBox(height: 40),
 
-                  // Botões de Confirmação
                   Row(
                     mainAxisAlignment: MainAxisAlignment.spaceAround,
                     children: [
@@ -108,46 +130,7 @@ class _InsumosEditPageState extends State<InsumosEditPage> {
                           foregroundColor: Colors.white,
                           padding: const EdgeInsets.symmetric(horizontal: 30, vertical: 15),
                         ),
-                        onPressed: viewModel.estaCarregando ? null : () async {
-                          if (nome.text.isEmpty) {
-                            ScaffoldMessenger.of(context).showSnackBar(
-                              const SnackBar(content: Text('O nome do insumo é obrigatório!'), backgroundColor: Colors.redAccent),
-                            );
-                            return;
-                          }
-
-                          // Criação do objeto mantendo obrigatoriamente o ID original para trigger do UPDATE
-                          final insumoAtualizado = Insumo(
-                            id: widget.insumo.id,
-                            nome: nome.text,
-                            descricao: descricao.text.isEmpty ? null : descricao.text,
-                            estoqueMinimo: int.tryParse(estoqueMinimo.text),
-                            categoria: categoria.text.isEmpty ? null : categoria.text,
-                            unidadeMedida: unidadeMedida.text.isEmpty ? null : unidadeMedida.text,
-                            imagemUrl: imagem,
-                          );
-
-                          final sucesso = await viewModel.salvarInsumo(insumoAtualizado);
-
-                          if (sucesso && mounted) {
-                            ScaffoldMessenger.of(context).showSnackBar(
-                              const SnackBar(
-                                content: Text('Dados Atualizados com Sucesso!'),
-                                backgroundColor: Colors.green,
-                                duration: Duration(seconds: 2),
-                              ),
-                            );
-                            Navigator.of(context).pop();
-                          } else if (mounted) {
-                            ScaffoldMessenger.of(context).showSnackBar(
-                              const SnackBar(
-                                content: Text('Problemas ao atualizar dados!'),
-                                backgroundColor: Colors.redAccent,
-                                duration: Duration(seconds: 2),
-                              ),
-                            );
-                          }
-                        },
+                        onPressed: viewModel.estaCarregando ? null : _processarAtualizar,
                         child: viewModel.estaCarregando
                             ? const SizedBox(
                           width: 20,
@@ -176,20 +159,11 @@ class _InsumosEditPageState extends State<InsumosEditPage> {
     );
   }
 
-  // Componente de renderização condicional da imagem
   Widget _obterWidgetImagem() {
-    if (kIsWeb && imgWeb != null) {
-      return Image.memory(imgWeb!, fit: BoxFit.cover);
-    }
-    if (_foto != null) {
-      return Image.file(_foto!, fit: BoxFit.cover);
-    }
+    if (kIsWeb && imgWeb != null) return Image.memory(imgWeb!, fit: BoxFit.cover);
+    if (_foto != null) return Image.file(_foto!, fit: BoxFit.cover);
     if (imagem != null && imagem!.isNotEmpty) {
-      return Image.network(
-        imagem!,
-        fit: BoxFit.cover,
-        errorBuilder: (context, error, stackTrace) => const Icon(Icons.inventory_2, size: 60, color: Colors.blueAccent),
-      );
+      return Image.network(imagem!, fit: BoxFit.cover, errorBuilder: (context, error, stackTrace) => const Icon(Icons.inventory_2, size: 60, color: Colors.blueAccent));
     }
     return const Icon(Icons.photo_camera, size: 60, color: Colors.blueAccent);
   }
@@ -201,16 +175,40 @@ class _InsumosEditPageState extends State<InsumosEditPage> {
         controller: controller,
         keyboardType: keyboardType,
         decoration: InputDecoration(
-          label: Text(label),
-          focusedBorder: OutlineInputBorder(
-            borderRadius: BorderRadius.circular(10),
-            borderSide: const BorderSide(color: Colors.blueAccent, width: 2),
-          ),
-          enabledBorder: OutlineInputBorder(
-            borderRadius: BorderRadius.circular(10),
-            borderSide: const BorderSide(color: Colors.grey, width: 1.5),
-          ),
+          labelText: label,
+          focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(10), borderSide: const BorderSide(color: Colors.blueAccent, width: 2)),
+          enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(10), borderSide: const BorderSide(color: Colors.grey, width: 1.5)),
         ),
+      ),
+    );
+  }
+
+  Widget _buildDropdownCategoria() {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 20.0),
+      child: DropdownButtonFormField<String>(
+        decoration: InputDecoration(
+          labelText: "Categoria *",
+          border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
+        ),
+        value: _categoriaSelecionada,
+        items: _categorias.entries.map((e) => DropdownMenuItem(value: e.key, child: Text(e.value))).toList(),
+        onChanged: (val) => setState(() => _categoriaSelecionada = val),
+      ),
+    );
+  }
+
+  Widget _buildDropdownUnidade() {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 20.0),
+      child: DropdownButtonFormField<String>(
+        decoration: InputDecoration(
+          labelText: "Unidade *",
+          border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
+        ),
+        value: _unidadeSelecionada,
+        items: _unidades.entries.map((e) => DropdownMenuItem(value: e.key, child: Text(e.value))).toList(),
+        onChanged: (val) => setState(() => _unidadeSelecionada = val),
       ),
     );
   }
@@ -221,22 +219,8 @@ class _InsumosEditPageState extends State<InsumosEditPage> {
       builder: (context) {
         return Wrap(
           children: [
-            ListTile(
-              leading: const Icon(Icons.photo_library, color: Colors.blueAccent),
-              title: const Text('Galeria'),
-              onTap: () {
-                _processarImagem(ImageSource.gallery);
-                Navigator.of(context).pop();
-              },
-            ),
-            ListTile(
-              leading: const Icon(Icons.photo_camera, color: Colors.blueAccent),
-              title: const Text('Câmera'),
-              onTap: () {
-                _processarImagem(ImageSource.camera);
-                Navigator.of(context).pop();
-              },
-            ),
+            ListTile(leading: const Icon(Icons.photo_library, color: Colors.blueAccent), title: const Text('Galeria'), onTap: () { _processarImagem(ImageSource.gallery); Navigator.of(context).pop(); }),
+            ListTile(leading: const Icon(Icons.photo_camera, color: Colors.blueAccent), title: const Text('Câmera'), onTap: () { _processarImagem(ImageSource.camera); Navigator.of(context).pop(); }),
           ],
         );
       },
@@ -245,22 +229,48 @@ class _InsumosEditPageState extends State<InsumosEditPage> {
 
   Future<void> _processarImagem(ImageSource source) async {
     final picker = ImagePicker();
-    final XFile? imagemSelecionada = await picker.pickImage(
-      source: source,
-      maxWidth: 600,
-      imageQuality: 85,
-    );
+    final XFile? imagemSelecionada = await picker.pickImage(source: source, maxWidth: 600, imageQuality: 85);
 
     if (imagemSelecionada != null) {
       final bytes = await imagemSelecionada.readAsBytes();
       setState(() {
-        if (kIsWeb) {
-          imgWeb = bytes;
-        }
+        if (kIsWeb) imgWeb = bytes;
         _foto = File(imagemSelecionada.path);
         arqPath = imagemSelecionada.name;
         imagem = imagemSelecionada.path;
       });
+    }
+  }
+
+  Future<void> _processarAtualizar() async {
+    final viewModel = context.read<InsumosViewModel>();
+
+    if (nome.text.isEmpty || _categoriaSelecionada == null || _unidadeSelecionada == null) {
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Preencha todos os campos obrigatórios (*)'), backgroundColor: Colors.redAccent));
+      return;
+    }
+
+    final insumoAtualizado = Insumo(
+      id: widget.insumo.id,
+      nome: nome.text,
+      estoqueMinimo: int.tryParse(estoqueMinimo.text),
+      categoria: _categoriaSelecionada,
+      unidadeMedida: _unidadeSelecionada,
+      imagemUrl: imagem,
+      // Mantém os dados numéricos já existentes
+      saldoGeral: widget.insumo.saldoGeral,
+      custoMedio: widget.insumo.custoMedio,
+      ativo: widget.insumo.ativo,
+      dataCriacao: widget.insumo.dataCriacao,
+    );
+
+    final sucesso = await viewModel.salvarInsumo(insumoAtualizado);
+
+    if (sucesso && mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Dados Atualizados com Sucesso!'), backgroundColor: Colors.green));
+      Navigator.of(context).pop();
+    } else if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Problemas ao atualizar dados!'), backgroundColor: Colors.redAccent));
     }
   }
 }

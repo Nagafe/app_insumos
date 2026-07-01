@@ -1,7 +1,9 @@
+import 'package:flutter/cupertino.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:uuid/uuid.dart';
 import 'package:sqflite_common_ffi/sqflite_ffi.dart';
-import '../../insumos/services/insumos_db_helper.dart'; // Reutilizamos a conexão do helper
+import '../../insumos/services/insumos_db_helper.dart';
+import '../../insumos/models/insumo.dart';
 import '../models/lote.dart';
 import '../models/movimentacao.dart';
 import 'movimentacoes_service.dart';
@@ -18,7 +20,7 @@ class MovimentacoesServiceHibrido implements MovimentacoesService {
       'lotes',
       where: 'insumo_id = ? AND quantidade_lote > 0',
       whereArgs: [insumoId],
-      orderBy: 'data_validade ASC', // Estratégia FEFO (First Expire, First Out)
+      orderBy: 'data_validade ASC',
     );
     return mapas.map((json) => Lote.fromMap(json)).toList();
   }
@@ -27,6 +29,7 @@ class MovimentacoesServiceHibrido implements MovimentacoesService {
   Future<void> registrarMovimentacao({
     required Movimentacao movimentacao,
     required Lote lote,
+    required Insumo insumo,
     required bool isNovaEntrada,
   }) async {
     final db = await _dbHelper.database;
@@ -36,30 +39,49 @@ class MovimentacoesServiceHibrido implements MovimentacoesService {
     movimentacao.id = movId;
     lote.id = loteId;
 
-    // 1. TRANSAÇÃO LOCAL (SQLite) - Atomicidade garantida
+    debugPrint('--- DEBUG MOVIMENTAÇÃO ---');
+    debugPrint('Insumo Atual: ${insumo.nome} | Saldo: ${insumo.saldoGeral} | Custo Médio: ${insumo.custoMedio}');
+    debugPrint('Movimentação: ${movimentacao.tipo} | Qtd: ${movimentacao.quantidade} | Custo Unit: ${movimentacao.custoUnitario}');
+    // ----- MATEMÁTICA FINANCEIRA DO ESTOQUE -----
+    double novoCustoMedio = insumo.custoMedio;
+    int novoSaldoGeral = insumo.saldoGeral;
+
+    if (movimentacao.tipo == 'ENTRADA') {
+      novoSaldoGeral += movimentacao.quantidade;
+      // Fórmula do Custo Médio:
+      // ((Saldo Antigo * Custo Médio Antigo) + (Quantidade Nova * Custo Unitario Novo)) / Novo Saldo Total
+      double valorEstoqueAntigo = insumo.saldoGeral * insumo.custoMedio;
+      double valorCompraAtual = movimentacao.quantidade * movimentacao.custoUnitario;
+
+      if (novoSaldoGeral > 0) {
+        novoCustoMedio = (valorEstoqueAntigo + valorCompraAtual) / novoSaldoGeral;
+      }
+    } else {
+      // Saída não altera o custo médio, apenas o saldo
+      novoSaldoGeral -= movimentacao.quantidade;
+    }
+    debugPrint('Calculado -> Novo Saldo: $novoSaldoGeral | Novo Custo: $novoCustoMedio');
+    // 1. TRANSAÇÃO LOCAL (SQLite)
     await db.transaction((txn) async {
-      // Grava ou atualiza o Lote
       if (isNovaEntrada) {
         await txn.insert('lotes', lote.toMap(), conflictAlgorithm: ConflictAlgorithm.replace);
       } else {
-        await txn.update(
-          'lotes',
-          {'quantidade_lote': lote.quantidadeLote},
-          where: 'id = ?',
-          whereArgs: [lote.id],
-        );
+        await txn.update('lotes', {'quantidade_lote': lote.quantidadeLote}, where: 'id = ?', whereArgs: [lote.id]);
       }
 
-      // Grava a Movimentação (com a flag oculta de sincronizado = 0 para o background)
       final mapMov = movimentacao.toMap();
       mapMov['sincronizado'] = 0;
       await txn.insert('movimentacoes', mapMov);
 
-      // Atualiza o Saldo Geral do Insumo
-      final operador = movimentacao.tipo == 'Entrada' ? '+' : '-';
-      await txn.rawUpdate(
-          'UPDATE insumos SET saldo_geral = saldo_geral $operador ? WHERE id = ?',
-          [movimentacao.quantidade, movimentacao.insumoId]
+      // Atualiza o Saldo Geral E o Custo Médio do Insumo
+      await txn.update(
+        'insumos',
+        {
+          'saldo_geral': novoSaldoGeral,
+          'custo_medio': novoCustoMedio
+        },
+        where: 'id = ?',
+        whereArgs: [insumo.id],
       );
     });
 
@@ -73,13 +95,15 @@ class MovimentacoesServiceHibrido implements MovimentacoesService {
 
       await _supabase.from('movimentacoes').insert(movimentacao.toMap());
 
-      // Chamada RPC para calcular o saldo diretamente no servidor (Opcional, mas recomendado para consistência)
-      // await _supabase.rpc('atualizar_saldo_insumo', params: {'p_insumo_id': movimentacao.insumoId});
+      // Sincroniza os novos cálculos do Insumo na nuvem (mantendo Supabase e SQLite idênticos)
+      await _supabase.from('insumos').update({
+        'saldo_geral': novoSaldoGeral,
+        'custo_medio': novoCustoMedio
+      }).eq('id', insumo.id!);
 
-      // Se passou sem erros de rede, marca como sincronizado localmente
       await db.update('movimentacoes', {'sincronizado': 1}, where: 'id = ?', whereArgs: [movId]);
     } catch (e) {
-      print('Modo Offline: Movimentação de ${movimentacao.tipo} salva localmente com sucesso. Pendente envio para nuvem.');
+      print('Modo Offline: Movimentação de ${movimentacao.tipo} salva localmente.');
     }
   }
 }

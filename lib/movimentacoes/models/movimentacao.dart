@@ -1,10 +1,11 @@
+import '../../insumos/models/insumo.dart';
+
 class Movimentacao {
   String? id;
-  String insumoId;
+  String loteId;
   String funcionarioId;
   String? fornecedorId;
-  String loteId;
-  String tipo; // 'Entrada' ou 'Saída'
+  String tipo; // Sempre 'ENTRADA' ou 'SAIDA'
   int quantidade;
   double custoUnitario;
   String? motivo;
@@ -12,10 +13,9 @@ class Movimentacao {
 
   Movimentacao({
     this.id,
-    required this.insumoId,
+    required this.loteId,
     required this.funcionarioId,
     this.fornecedorId,
-    required this.loteId,
     required this.tipo,
     required this.quantidade,
     this.custoUnitario = 0.00,
@@ -25,18 +25,21 @@ class Movimentacao {
 
   Map<String, dynamic> toMap() {
     final map = <String, dynamic>{
-      'insumo_id': insumoId,
+      'lote_id': loteId,
       'funcionario_id': funcionarioId,
       'fornecedor_id': fornecedorId, // Fica nulo se for Saída
-      'lote_id': loteId,
-      'tipo': tipo,
+      'tipo': tipo.toUpperCase(),   // Garante a caixa alta exigida pelo banco
       'quantidade': quantidade,
       'custo_unitario': custoUnitario,
-      'motivo': motivo, // Opcional ou preenchido na Saída
+      'motivo': motivo,
     };
 
     if (id != null) {
       map['id'] = id;
+    }
+
+    if (dataMovimentacao != null) {
+      map['data_movimentacao'] = dataMovimentacao!.toIso8601String();
     }
 
     return map;
@@ -45,11 +48,10 @@ class Movimentacao {
   factory Movimentacao.fromMap(Map<String, dynamic> map) {
     return Movimentacao(
       id: map['id']?.toString(),
-      insumoId: map['insumo_id'] ?? '',
+      loteId: map['lote_id'] ?? '',
       funcionarioId: map['funcionario_id'] ?? '',
       fornecedorId: map['fornecedor_id']?.toString(),
-      loteId: map['lote_id'] ?? '',
-      tipo: map['tipo'] ?? 'Entrada',
+      tipo: (map['tipo']?.toString() ?? 'ENTRADA').toUpperCase(),
       quantidade: map['quantidade'] is int
           ? map['quantidade']
           : int.tryParse(map['quantidade']?.toString() ?? '0') ?? 0,
@@ -58,8 +60,16 @@ class Movimentacao {
           : double.tryParse(map['custo_unitario']?.toString() ?? '0.0') ?? 0.0,
       motivo: map['motivo'],
       dataMovimentacao: map['data_movimentacao'] != null
-          ? DateTime.parse(map['data_movimentacao'].toString())
+          ? DateTime.tryParse(map['data_movimentacao'].toString())
           : null,
     );
   }
+  @override
+  bool operator ==(Object other) {
+    if (identical(this, other)) return true;
+    return other is Insumo && other.id == id;
+  }
+
+  @override
+  int get hashCode => id.hashCode;
 }

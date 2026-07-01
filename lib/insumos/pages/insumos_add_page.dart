@@ -15,23 +15,38 @@ class InsumosAddPage extends StatefulWidget {
 
 class _InsumosAddPageState extends State<InsumosAddPage> {
   final TextEditingController nome = TextEditingController();
-  final TextEditingController descricao = TextEditingController();
-  final TextEditingController estoqueMinimo = TextEditingController();
-  final TextEditingController categoria = TextEditingController();
-  final TextEditingController unidadeMedida = TextEditingController();
+  final TextEditingController estoqueMinimo = TextEditingController(text: '5'); // Padrão
+
+  String? _categoriaSelecionada;
+  String? _unidadeSelecionada;
+
+  final Map<String, String> _categorias = {
+    'CONSUMIVEL': 'Consumíveis',
+    'EPI': 'EPI',
+    'MEDICAMENTO': 'Medicamentos',
+    'INSTRUMENTAL': 'Instrumental',
+  };
+
+  final Map<String, String> _unidades = {
+    'CAIXA': 'Caixa',
+    'FRASCO': 'Frasco',
+    'KIT': 'Kit',
+    'UNIDADE': 'Unidade',
+    'LITRO': 'Litro',
+    'PACOTE': 'Pacote',
+    'PAR': 'Par',
+    'ROLO': 'Rolo',
+  };
 
   File? _foto;
   Uint8List? imgWeb;
   String? arqPath;
-  String? imagem; // Guarda a referência do caminho local do ImagePicker
+  String? imagem;
 
   @override
   void dispose() {
     nome.dispose();
-    descricao.dispose();
     estoqueMinimo.dispose();
-    categoria.dispose();
-    unidadeMedida.dispose();
     super.dispose();
   }
 
@@ -56,7 +71,6 @@ class _InsumosAddPageState extends State<InsumosAddPage> {
                   ),
                   const SizedBox(height: 20),
 
-                  // Seletor de Imagem Circular
                   InkWell(
                     onTap: _abrirSeletorImagem,
                     child: Container(
@@ -74,11 +88,48 @@ class _InsumosAddPageState extends State<InsumosAddPage> {
                   ),
                   const SizedBox(height: 30),
 
-                  _buildTextField(nome, "Nome"),
-                  _buildTextField(descricao, "Descrição"),
-                  _buildTextField(estoqueMinimo, "Estoque Mínimo", keyboardType: TextInputType.number),
-                  _buildTextField(categoria, "Categoria"),
-                  _buildTextField(unidadeMedida, "Unidade de Medida"),
+                  _buildTextField(nome, "Nome do Insumo *"),
+
+                  Row(
+                    children: [
+                      Expanded(child: _buildDropdownCategoria()),
+                      const SizedBox(width: 16),
+                      Expanded(child: _buildDropdownUnidade()),
+                    ],
+                  ),
+                  const SizedBox(height: 20),
+
+                  Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Expanded(
+                        child: _buildTextField(
+                          estoqueMinimo,
+                          "Estoque Mínimo *",
+                          keyboardType: TextInputType.number,
+                          helperText: "Quantidade mínima antes do alerta.",
+                        ),
+                      ),
+                      const SizedBox(width: 16),
+                      Expanded(
+                        child: Padding(
+                          padding: const EdgeInsets.only(bottom: 20.0),
+                          child: TextFormField(
+                            initialValue: "0",
+                            readOnly: true,
+                            decoration: InputDecoration(
+                              labelText: "Saldo Inicial",
+                              helperText: 'O saldo será adicionado na tela "Entrada".',
+                              helperMaxLines: 2,
+                              filled: true,
+                              fillColor: Colors.grey[200],
+                              border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
+                            ),
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
 
                   const SizedBox(height: 40),
 
@@ -91,60 +142,7 @@ class _InsumosAddPageState extends State<InsumosAddPage> {
                           foregroundColor: Colors.white,
                           padding: const EdgeInsets.symmetric(horizontal: 30, vertical: 15),
                         ),
-                        onPressed: viewModel.estaCarregando ? null : () async {
-                          if (nome.text.isEmpty) {
-                            ScaffoldMessenger.of(context).showSnackBar(
-                              const SnackBar(content: Text('O nome do insumo é obrigatório!'), backgroundColor: Colors.redAccent),
-                            );
-                            return;
-                          }
-
-                          String? nomeDoArquivo;
-                          Uint8List? bytesDaImagem;
-
-                          if (imgWeb != null) {
-                            bytesDaImagem = imgWeb;
-                            nomeDoArquivo = '${DateTime.now().millisecondsSinceEpoch}.jpg';
-                          } else if (_foto != null) {
-                            bytesDaImagem = await _foto!.readAsBytes();
-                            nomeDoArquivo = '${DateTime.now().millisecondsSinceEpoch}.jpg';
-                          }
-
-                          // CORREÇÃO: Passando a variável 'imagem' (path local) para o modelo
-                          final novoInsumo = Insumo(
-                            nome: nome.text,
-                            descricao: descricao.text.isEmpty ? null : descricao.text,
-                            estoqueMinimo: int.tryParse(estoqueMinimo.text),
-                            categoria: categoria.text.isEmpty ? null : categoria.text,
-                            unidadeMedida: unidadeMedida.text.isEmpty ? null : unidadeMedida.text,
-                            imagemUrl: imagem, // Modificado de 'null' para 'imagem'
-                          );
-
-                          final sucesso = await viewModel.salvarInsumo(
-                              novoInsumo,
-                              imageBytes: bytesDaImagem,
-                              imageName: nomeDoArquivo
-                          );
-
-                          if (sucesso && mounted) {
-                            ScaffoldMessenger.of(context).showSnackBar(
-                              const SnackBar(
-                                content: Text('Dados Gravados com Sucesso!'),
-                                backgroundColor: Colors.green,
-                                duration: Duration(seconds: 2),
-                              ),
-                            );
-                            Navigator.of(context).pop();
-                          } else if (mounted) {
-                            ScaffoldMessenger.of(context).showSnackBar(
-                              const SnackBar(
-                                content: Text('Problemas ao gravar dados!'),
-                                backgroundColor: Colors.redAccent,
-                                duration: Duration(seconds: 2),
-                              ),
-                            );
-                          }
-                        },
+                        onPressed: viewModel.estaCarregando ? null : _processarSalvar,
                         child: viewModel.estaCarregando
                             ? const SizedBox(
                           width: 20,
@@ -173,34 +171,54 @@ class _InsumosAddPageState extends State<InsumosAddPage> {
     );
   }
 
-  // Componente visual para renderizar o preview da foto antes de salvar
   Widget _obterWidgetImagem() {
-    if (kIsWeb && imgWeb != null) {
-      return Image.memory(imgWeb!, fit: BoxFit.cover);
-    }
-    if (_foto != null) {
-      return Image.file(_foto!, fit: BoxFit.cover);
-    }
+    if (kIsWeb && imgWeb != null) return Image.memory(imgWeb!, fit: BoxFit.cover);
+    if (_foto != null) return Image.file(_foto!, fit: BoxFit.cover);
     return const Icon(Icons.photo_camera, size: 60, color: Colors.blueAccent);
   }
 
-  Widget _buildTextField(TextEditingController controller, String label, {TextInputType keyboardType = TextInputType.text}) {
+  Widget _buildTextField(TextEditingController controller, String label, {TextInputType keyboardType = TextInputType.text, String? helperText}) {
     return Padding(
       padding: const EdgeInsets.only(bottom: 20.0),
       child: TextFormField(
         controller: controller,
         keyboardType: keyboardType,
         decoration: InputDecoration(
-          label: Text(label),
-          focusedBorder: OutlineInputBorder(
-            borderRadius: BorderRadius.circular(10),
-            borderSide: const BorderSide(color: Colors.blueAccent, width: 2),
-          ),
-          enabledBorder: OutlineInputBorder(
-            borderRadius: BorderRadius.circular(10),
-            borderSide: const BorderSide(color: Colors.grey, width: 1.5),
-          ),
+          labelText: label,
+          helperText: helperText,
+          focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(10), borderSide: const BorderSide(color: Colors.blueAccent, width: 2)),
+          enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(10), borderSide: const BorderSide(color: Colors.grey, width: 1.5)),
         ),
+      ),
+    );
+  }
+
+  Widget _buildDropdownCategoria() {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 20.0),
+      child: DropdownButtonFormField<String>(
+        decoration: InputDecoration(
+          labelText: "Categoria *",
+          border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
+        ),
+        value: _categoriaSelecionada,
+        items: _categorias.entries.map((e) => DropdownMenuItem(value: e.key, child: Text(e.value))).toList(),
+        onChanged: (val) => setState(() => _categoriaSelecionada = val),
+      ),
+    );
+  }
+
+  Widget _buildDropdownUnidade() {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 20.0),
+      child: DropdownButtonFormField<String>(
+        decoration: InputDecoration(
+          labelText: "Unidade *",
+          border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
+        ),
+        value: _unidadeSelecionada,
+        items: _unidades.entries.map((e) => DropdownMenuItem(value: e.key, child: Text(e.value))).toList(),
+        onChanged: (val) => setState(() => _unidadeSelecionada = val),
       ),
     );
   }
@@ -211,22 +229,8 @@ class _InsumosAddPageState extends State<InsumosAddPage> {
       builder: (context) {
         return Wrap(
           children: [
-            ListTile(
-              leading: const Icon(Icons.photo_library, color: Colors.blueAccent),
-              title: const Text('Galeria'),
-              onTap: () {
-                _processarImagem(ImageSource.gallery);
-                Navigator.of(context).pop();
-              },
-            ),
-            ListTile(
-              leading: const Icon(Icons.photo_camera, color: Colors.blueAccent),
-              title: const Text('Câmera'),
-              onTap: () {
-                _processarImagem(ImageSource.camera);
-                Navigator.of(context).pop();
-              },
-            ),
+            ListTile(leading: const Icon(Icons.photo_library, color: Colors.blueAccent), title: const Text('Galeria'), onTap: () { _processarImagem(ImageSource.gallery); Navigator.of(context).pop(); }),
+            ListTile(leading: const Icon(Icons.photo_camera, color: Colors.blueAccent), title: const Text('Câmera'), onTap: () { _processarImagem(ImageSource.camera); Navigator.of(context).pop(); }),
           ],
         );
       },
@@ -235,22 +239,56 @@ class _InsumosAddPageState extends State<InsumosAddPage> {
 
   Future<void> _processarImagem(ImageSource source) async {
     final picker = ImagePicker();
-    final XFile? imagemSelecionada = await picker.pickImage(
-      source: source,
-      maxWidth: 600,
-      imageQuality: 85,
-    );
+    final XFile? imagemSelecionada = await picker.pickImage(source: source, maxWidth: 600, imageQuality: 85);
 
     if (imagemSelecionada != null) {
       final bytes = await imagemSelecionada.readAsBytes();
       setState(() {
-        if (kIsWeb) {
-          imgWeb = bytes;
-        }
+        if (kIsWeb) imgWeb = bytes;
         _foto = File(imagemSelecionada.path);
         arqPath = imagemSelecionada.name;
-        imagem = imagemSelecionada.path; // Define o caminho interno para exibição híbrida
+        imagem = imagemSelecionada.path;
       });
+    }
+  }
+
+  Future<void> _processarSalvar() async {
+    final viewModel = context.read<InsumosViewModel>();
+
+    if (nome.text.isEmpty || _categoriaSelecionada == null || _unidadeSelecionada == null) {
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Preencha todos os campos obrigatórios (*)'), backgroundColor: Colors.redAccent));
+      return;
+    }
+
+    String? nomeDoArquivo;
+    Uint8List? bytesDaImagem;
+
+    if (imgWeb != null) {
+      bytesDaImagem = imgWeb;
+      nomeDoArquivo = '${DateTime.now().millisecondsSinceEpoch}.jpg';
+    } else if (_foto != null) {
+      bytesDaImagem = await _foto!.readAsBytes();
+      nomeDoArquivo = '${DateTime.now().millisecondsSinceEpoch}.jpg';
+    }
+
+    final novoInsumo = Insumo(
+      nome: nome.text,
+      estoqueMinimo: int.tryParse(estoqueMinimo.text),
+      categoria: _categoriaSelecionada,
+      unidadeMedida: _unidadeSelecionada,
+      imagemUrl: imagem,
+      ativo: true,
+      saldoGeral: 0,
+      custoMedio: 0.0,
+    );
+
+    final sucesso = await viewModel.salvarInsumo(novoInsumo, imageBytes: bytesDaImagem, imageName: nomeDoArquivo);
+
+    if (sucesso && mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Dados Gravados com Sucesso!'), backgroundColor: Colors.green));
+      Navigator.of(context).pop();
+    } else if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Problemas ao gravar dados!'), backgroundColor: Colors.redAccent));
     }
   }
 }

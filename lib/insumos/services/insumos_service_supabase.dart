@@ -34,7 +34,6 @@ class InsumosServiceSupabase implements InsumosService {
     final insumoComUrl = Insumo(
       id: insumo.id,
       nome: insumo.nome,
-      descricao: insumo.descricao,
       estoqueMinimo: insumo.estoqueMinimo,
       categoria: insumo.categoria,
       unidadeMedida: insumo.unidadeMedida,
@@ -64,7 +63,6 @@ class InsumosServiceSupabase implements InsumosService {
     final insumoAtualizado = Insumo(
       id: insumo.id,
       nome: insumo.nome,
-      descricao: insumo.descricao,
       estoqueMinimo: insumo.estoqueMinimo,
       categoria: insumo.categoria,
       unidadeMedida: insumo.unidadeMedida,

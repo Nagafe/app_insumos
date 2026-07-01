@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../insumos/models/insumo.dart';
 import '../../insumos/mvvm/insumos_view_model.dart';
 import '../../fornecedores/models/fornecedor.dart';
@@ -15,13 +16,11 @@ class MovimentacaoPage extends StatefulWidget {
 }
 
 class _MovimentacaoPageState extends State<MovimentacaoPage> {
-  // Controladores de texto para os inputs
   final TextEditingController quantidadeCtrl = TextEditingController();
-  final TextEditingController custoCtrl = TextEditingController();
+  final TextEditingController valorTotalCtrl = TextEditingController(); // <-- Alterado
   final TextEditingController motivoCtrl = TextEditingController();
   final TextEditingController numeroLoteCtrl = TextEditingController();
 
-  // Estado das seleções do utilizador
   Insumo? insumoSelecionado;
   Fornecedor? fornecedorSelecionado;
   Lote? loteSelecionado;
@@ -30,7 +29,6 @@ class _MovimentacaoPageState extends State<MovimentacaoPage> {
   @override
   void initState() {
     super.initState();
-    // Garante que as listas de Insumos e Fornecedores estejam carregadas ao abrir a tela
     WidgetsBinding.instance.addPostFrameCallback((_) {
       context.read<InsumosViewModel>().carregarInsumos();
       context.read<FornecedorViewModel>().carregarFornecedores();
@@ -40,7 +38,7 @@ class _MovimentacaoPageState extends State<MovimentacaoPage> {
   @override
   void dispose() {
     quantidadeCtrl.dispose();
-    custoCtrl.dispose();
+    valorTotalCtrl.dispose(); // <-- Alterado
     motivoCtrl.dispose();
     numeroLoteCtrl.dispose();
     super.dispose();
@@ -48,7 +46,6 @@ class _MovimentacaoPageState extends State<MovimentacaoPage> {
 
   @override
   Widget build(BuildContext context) {
-    // Escuta o ViewModel de Movimentação para reagir às mudanças (Entrada/Saída)
     final movViewModel = context.watch<MovimentacaoViewModel>();
     final insumosViewModel = context.watch<InsumosViewModel>();
     final fornecedorViewModel = context.watch<FornecedorViewModel>();
@@ -64,7 +61,6 @@ class _MovimentacaoPageState extends State<MovimentacaoPage> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            // 1. Controle de Alternância (Toggle Entrada/Saída)
             SegmentedButton<bool>(
               segments: const [
                 ButtonSegment(
@@ -81,7 +77,7 @@ class _MovimentacaoPageState extends State<MovimentacaoPage> {
               selected: {movViewModel.isEntrada},
               onSelectionChanged: (Set<bool> newSelection) {
                 movViewModel.alternarTipoMovimentacao(newSelection.first);
-                _limparCampos(); // Limpa o formulário ao trocar o tipo
+                _limparCampos();
               },
               style: SegmentedButton.styleFrom(
                 selectedForegroundColor: Colors.white,
@@ -91,7 +87,6 @@ class _MovimentacaoPageState extends State<MovimentacaoPage> {
 
             const SizedBox(height: 30),
 
-            // 2. Seleção de Insumo (Comum a ambos)
             DropdownButtonFormField<Insumo>(
               decoration: _buildInputDecoration('Insumo'),
               value: insumoSelecionado,
@@ -101,19 +96,16 @@ class _MovimentacaoPageState extends State<MovimentacaoPage> {
               onChanged: (Insumo? novoInsumo) {
                 setState(() {
                   insumoSelecionado = novoInsumo;
-                  loteSelecionado = null; // Reseta o lote se trocar o insumo
+                  loteSelecionado = null;
                 });
                 if (!movViewModel.isEntrada && novoInsumo != null) {
-                  // Se for saída, busca os lotes do insumo selecionado
                   movViewModel.buscarLotesDoInsumo(novoInsumo.id!);
                 }
               },
             ),
             const SizedBox(height: 20),
 
-            // 3. Renderização Dinâmica: Campos Específicos
             if (movViewModel.isEntrada) ...[
-              // ------ CAMPOS DE ENTRADA ------
               DropdownButtonFormField<Fornecedor>(
                 decoration: _buildInputDecoration('Fornecedor (Origem)'),
                 value: fornecedorSelecionado,
@@ -151,12 +143,13 @@ class _MovimentacaoPageState extends State<MovimentacaoPage> {
               const SizedBox(height: 20),
 
               TextFormField(
-                controller: custoCtrl,
+                controller: valorTotalCtrl, // <-- Alterado
                 keyboardType: TextInputType.number,
-                decoration: _buildInputDecoration('Custo Unitário (R\$)'),
+                decoration: _buildInputDecoration('Valor Total da Compra (R\$)').copyWith(
+                  helperText: 'O sistema calculará o custo médio automaticamente.',
+                ),
               ),
             ] else ...[
-              // ------ CAMPOS DE SAÍDA ------
               DropdownButtonFormField<Lote>(
                 decoration: _buildInputDecoration('Lote de Origem'),
                 value: loteSelecionado,
@@ -181,7 +174,6 @@ class _MovimentacaoPageState extends State<MovimentacaoPage> {
 
             const SizedBox(height: 20),
 
-            // 4. Quantidade (Comum a ambos)
             TextFormField(
               controller: quantidadeCtrl,
               keyboardType: TextInputType.number,
@@ -190,7 +182,6 @@ class _MovimentacaoPageState extends State<MovimentacaoPage> {
 
             const SizedBox(height: 40),
 
-            // 5. Botão de Salvar
             ElevatedButton(
               style: ElevatedButton.styleFrom(
                 backgroundColor: movViewModel.isEntrada ? Colors.green : Colors.orange,
@@ -209,8 +200,6 @@ class _MovimentacaoPageState extends State<MovimentacaoPage> {
     );
   }
 
-  // --- MÉTODOS AUXILIARES ---
-
   InputDecoration _buildInputDecoration(String label) {
     return InputDecoration(
       labelText: label,
@@ -227,7 +216,7 @@ class _MovimentacaoPageState extends State<MovimentacaoPage> {
       loteSelecionado = null;
       dataValidadeSelecionada = null;
       quantidadeCtrl.clear();
-      custoCtrl.clear();
+      valorTotalCtrl.clear(); // <-- Alterado
       motivoCtrl.clear();
       numeroLoteCtrl.clear();
     });
@@ -248,7 +237,6 @@ class _MovimentacaoPageState extends State<MovimentacaoPage> {
   }
 
   Future<void> _processarSalvar(MovimentacaoViewModel movViewModel) async {
-    // Validações Base
     if (insumoSelecionado == null) {
       _mostrarErro('Selecione um insumo.');
       return;
@@ -259,18 +247,32 @@ class _MovimentacaoPageState extends State<MovimentacaoPage> {
       return;
     }
 
-    // ID mockado temporariamente (Na prática, virá do AuthViewModel do utilizador logado)
-    const String funcionarioIdMock = '00000000-0000-0000-0000-000000000000';
+    double valorDaCompra = 0.0;
+    if (movViewModel.isEntrada) {
+      valorDaCompra = double.tryParse(valorTotalCtrl.text.replaceAll(',', '.')) ?? 0.0;
+      if (valorDaCompra <= 0) {
+        _mostrarErro('Informe um valor total de compra válido.');
+        return;
+      }
+    }
+
+    // CAPTURA DO ID REAL: Pega o ID do funcionário que está logado no Supabase
+    final usuarioAtual = Supabase.instance.client.auth.currentUser;
+    if (usuarioAtual == null) {
+      _mostrarErro('Erro de sessão: Faça login novamente.');
+      return;
+    }
+    final String funcionarioIdReal = usuarioAtual.id;
 
     bool sucesso = await movViewModel.processarMovimentacao(
       insumoSelecionado: insumoSelecionado!,
       quantidade: qtd,
-      funcionarioId: funcionarioIdMock,
+      funcionarioId: funcionarioIdReal, // <-- Agora enviamos o ID real e válido!
       fornecedorId: fornecedorSelecionado?.id,
       loteExistente: loteSelecionado,
       novoNumeroLote: numeroLoteCtrl.text.isNotEmpty ? numeroLoteCtrl.text : null,
       novaDataValidade: dataValidadeSelecionada,
-      custoUnitario: double.tryParse(custoCtrl.text) ?? 0.0,
+      valorTotalCompra: valorDaCompra,
       motivo: motivoCtrl.text,
     );
 

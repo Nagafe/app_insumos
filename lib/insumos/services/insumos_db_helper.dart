@@ -17,7 +17,6 @@ class InsumosDbHelper {
   }
 
   Future<Database> _initDB(String filePath) async {
-    // Garante compatibilidade caso rode o emulador via Desktop
     if (Platform.isWindows || Platform.isLinux || Platform.isMacOS) {
       sqfliteFfiInit();
       databaseFactory = databaseFactoryFfi;
@@ -30,21 +29,22 @@ class InsumosDbHelper {
   }
 
   Future _createDB(Database db, int version) async {
-    // 1. Tabela original espelhando a base do Supabase
     await db.execute('''
       CREATE TABLE insumos (
         id TEXT PRIMARY KEY,
         nome TEXT NOT NULL,
-        descricao TEXT,
         estoque_minimo INTEGER,
         categoria TEXT,
         unidade_medida TEXT,
         imagem_url TEXT,
+        saldo_geral INTEGER DEFAULT 0,
+        custo_medio REAL DEFAULT 0.0,
+        ativo INTEGER DEFAULT 1,
+        data_criacao TEXT,
         sincronizado INTEGER NOT NULL DEFAULT 1
       )
     ''');
 
-    // 2. NOVA Tabela de Lotes
     await db.execute('''
       CREATE TABLE lotes (
         id TEXT PRIMARY KEY,
@@ -56,11 +56,10 @@ class InsumosDbHelper {
       )
     ''');
 
-    // 3. NOVA Tabela de Movimentações
+    // Correção Aplicada: Coluna insumo_id removida desta tabela
     await db.execute('''
       CREATE TABLE movimentacoes (
         id TEXT PRIMARY KEY,
-        insumo_id TEXT NOT NULL,
         funcionario_id TEXT NOT NULL,
         fornecedor_id TEXT,
         lote_id TEXT NOT NULL,
@@ -78,7 +77,7 @@ class InsumosDbHelper {
     final db = await instance.database;
     final dados = insumo.toMap();
 
-    // A flag de controle offline
+    dados['ativo'] = insumo.ativo ? 1 : 0;
     dados['sincronizado'] = estaSincronizado ? 1 : 0;
 
     await db.insert(
@@ -94,7 +93,6 @@ class InsumosDbHelper {
     return resultado.map((json) => Insumo.fromMap(json)).toList();
   }
 
-  // Retorna os dados crus (Map) para facilitar o UPSERT no Supabase depois
   Future<List<Map<String, dynamic>>> listarPendentes() async {
     final db = await instance.database;
     return await db.query('insumos', where: 'sincronizado = ?', whereArgs: [0]);

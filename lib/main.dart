@@ -1,4 +1,5 @@
 import 'dart:io' show Platform;
+import 'package:app_insumos/dashboard/mvvm/dashboard_view_model.dart';
 import 'package:app_insumos/insumos/mvvm/insumos_view_model.dart';
 import 'package:app_insumos/insumos/services/insumos_service_hibrido.dart';
 import 'package:flutter/foundation.dart' show kIsWeb;
@@ -44,13 +45,10 @@ class MyApp extends StatelessWidget {
       providers: [
         ChangeNotifierProvider(create: (context) => AuthViewModel()),
         // Aqui injetamos o serviço do Supabase para dentro do ViewModel!
-        ChangeNotifierProvider(
-          create: (context) => FornecedorViewModel(FornecedorServiceHibrido()),
-
-        ),
+        ChangeNotifierProvider(create: (context) => FornecedorViewModel(FornecedorServiceHibrido()),),
         ChangeNotifierProvider(create: (context) => InsumosViewModel(InsumosServiceHibrido()),),
-        ChangeNotifierProvider(create: (context) => MovimentacaoViewModel(MovimentacoesServiceHibrido())),
-
+        ChangeNotifierProvider(create: (context) => MovimentacaoViewModel(MovimentacoesServiceHibrido()),),
+        ChangeNotifierProvider(create: (context) => DashboardViewModel())
       ],
       child: MaterialApp(
         title: 'Sistema de Insumos',

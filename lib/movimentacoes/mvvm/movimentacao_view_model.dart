@@ -9,7 +9,6 @@ class MovimentacaoViewModel extends ChangeNotifier {
 
   MovimentacaoViewModel(this._service);
 
-  // Controle de Estado da Interface (Tela Única)
   bool _isEntrada = true;
   bool get isEntrada => _isEntrada;
 
@@ -19,20 +18,18 @@ class MovimentacaoViewModel extends ChangeNotifier {
   String? _erro;
   String? get erro => _erro;
 
-  // Lotes carregados dinamicamente ao selecionar um insumo (Para Saídas)
   List<Lote> _lotesDisponiveis = [];
   List<Lote> get lotesDisponiveis => _lotesDisponiveis;
 
   void alternarTipoMovimentacao(bool ehEntrada) {
     _isEntrada = ehEntrada;
-    _lotesDisponiveis = []; // Limpa os lotes ao alternar
+    _lotesDisponiveis = [];
     notifyListeners();
   }
 
   Future<void> buscarLotesDoInsumo(String insumoId) async {
     _estaCarregando = true;
     notifyListeners();
-
     try {
       _lotesDisponiveis = await _service.listarLotesPorInsumo(insumoId);
     } catch (e) {
@@ -46,13 +43,13 @@ class MovimentacaoViewModel extends ChangeNotifier {
   Future<bool> processarMovimentacao({
     required Insumo insumoSelecionado,
     required int quantidade,
-    String? fornecedorId, // Nulo se for saída
-    Lote? loteExistente, // Usado na saída
-    String? novoNumeroLote, // Usado na entrada
-    DateTime? novaDataValidade, // Usado na entrada
-    double custoUnitario = 0.0,
+    String? fornecedorId,
+    Lote? loteExistente,
+    String? novoNumeroLote,
+    DateTime? novaDataValidade,
+    double valorTotalCompra = 0.0,
     String? motivo,
-    required String funcionarioId, // ID do utilizador logado
+    required String funcionarioId,
   }) async {
     _estaCarregando = true;
     _erro = null;
@@ -60,11 +57,17 @@ class MovimentacaoViewModel extends ChangeNotifier {
 
     try {
       Lote loteAlvo;
+      double custoUnitarioCalculado = 0.0;
 
       if (_isEntrada) {
         if (novoNumeroLote == null || novaDataValidade == null) {
           throw Exception("Dados do lote são obrigatórios para entrada.");
         }
+        if (quantidade <= 0) throw Exception("Quantidade deve ser maior que zero.");
+
+        // Na Entrada: Calcula o valor da unidade pela nota fiscal
+        custoUnitarioCalculado = valorTotalCompra / quantidade;
+
         loteAlvo = Lote(
           insumoId: insumoSelecionado.id!,
           numeroLote: novoNumeroLote,
@@ -79,17 +82,20 @@ class MovimentacaoViewModel extends ChangeNotifier {
           throw Exception("Quantidade em lote insuficiente.");
         }
         loteAlvo = loteExistente;
-        loteAlvo.quantidadeLote -= quantidade; // Deduz do lote na memória antes de salvar
+        loteAlvo.quantidadeLote -= quantidade;
+
+        // MICRO-CORREÇÃO: Na Saída, registra o custo financeiro do insumo no momento exato do consumo
+        custoUnitarioCalculado = insumoSelecionado.custoMedio;
       }
 
       final mov = Movimentacao(
-        insumoId: insumoSelecionado.id!,
         funcionarioId: funcionarioId,
         fornecedorId: _isEntrada ? fornecedorId : null,
-        loteId: loteAlvo.id ?? '', // Será gerado no service se for entrada
-        tipo: _isEntrada ? 'Entrada' : 'Saída',
+        loteId: loteAlvo.id ?? '',
+        tipo: _isEntrada ? 'ENTRADA' : 'SAIDA',
         quantidade: quantidade,
-        custoUnitario: _isEntrada ? custoUnitario : 0.0,
+        // Agora o custo unitário está sempre preenchido, seja compra ou consumo
+        custoUnitario: custoUnitarioCalculado,
         motivo: !_isEntrada ? motivo : null,
         dataMovimentacao: DateTime.now(),
       );
@@ -97,6 +103,7 @@ class MovimentacaoViewModel extends ChangeNotifier {
       await _service.registrarMovimentacao(
         movimentacao: mov,
         lote: loteAlvo,
+        insumo: insumoSelecionado,
         isNovaEntrada: _isEntrada,
       );
 

@@ -1,14 +1,14 @@
 import '../models/lote.dart';
 import '../models/movimentacao.dart';
+import '../../insumos/models/insumo.dart'; // <-- Adicionado
 
 abstract class MovimentacoesService {
-  /// Lista os lotes disponíveis para um insumo específico (útil para Saídas)
   Future<List<Lote>> listarLotesPorInsumo(String insumoId);
 
-  /// Regista a movimentação e atualiza os saldos de forma atómica
   Future<void> registrarMovimentacao({
     required Movimentacao movimentacao,
     required Lote lote,
+    required Insumo insumo, // <-- Necessário para os cálculos matemáticos locais
     required bool isNovaEntrada,
   });
 }

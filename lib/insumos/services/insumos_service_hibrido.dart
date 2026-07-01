@@ -96,7 +96,6 @@ class InsumosServiceHibrido implements InsumosService {
     final insumoComId = Insumo(
       id: novoId,
       nome: insumo.nome,
-      descricao: insumo.descricao,
       estoqueMinimo: insumo.estoqueMinimo,
       categoria: insumo.categoria,
       unidadeMedida: insumo.unidadeMedida,
@@ -109,6 +108,9 @@ class InsumosServiceHibrido implements InsumosService {
       await _supabase.from('insumos').insert(insumoComId.toMap());
       await _dbLocal.marcarComoSincronizado(novoId);
     } catch (e) {
+      print('==== ERRO DO SUPABASE ====');
+      print(e.toString());
+      print('==========================');
       print('Registro guardado localmente no SQLite.');
     }
   }
@@ -130,7 +132,6 @@ class InsumosServiceHibrido implements InsumosService {
     final insumoAtualizado = Insumo(
       id: insumo.id,
       nome: insumo.nome,
-      descricao: insumo.descricao,
       estoqueMinimo: insumo.estoqueMinimo,
       categoria: insumo.categoria,
       unidadeMedida: insumo.unidadeMedida,
